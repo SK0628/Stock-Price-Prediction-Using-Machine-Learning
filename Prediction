@@ -1,0 +1,213 @@
+#Step 1: importing modules
+import numpy as np
+import pandas as pd
+import requests
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from statsmodels.tsa.arima.model import ARIMA
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+# Download VADER for sentiment analysis
+nltk.download('vader_lexicon')
+
+#Step 3: fetching historical data from Alpha Vantage
+
+def fetch_stock_data(symbol, interval='daily', output_size='full'):
+    api_key = "YOUR_API_KEY" #(Generate your API key from alpha vantage and enter here)
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}&outputsize={output_size}&datatype=json"
+    
+    response = requests.get(url).json()
+    
+    if "Time Series (Daily)" not in response:
+        raise ValueError("Invalid API response. Check API Key or Symbol.")
+
+    # Convert response to DataFrame
+    df = pd.DataFrame.from_dict(response["Time Series (Daily)"], orient='index').astype(float)
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+
+    return df
+
+# Fetch stock data
+stock_symbol = "JPM"
+df_stock = fetch_stock_data(stock_symbol)
+df_stock.head()
+
+#Step 3: fetching latest news and perform sentiment analysis
+import requests
+
+# Replace with your actual NewsAPI key
+newsapi_key = "YOUR_API_KEY" #(Generate your API key from newsAPI and enter here)
+
+# Stock symbol to search for
+stock_symbol = "JPM"
+
+# NewsAPI endpoint for fetching news
+url = f"https://newsapi.org/v2/everything?q={stock_symbol}&language=en&sortBy=publishedAt&apiKey={newsapi_key}"
+
+# Make request
+response = requests.get(url)
+news_data = response.json()
+
+# Print the response to check for errors
+print(news_data)
+
+
+#Step 3.1: news extracting
+# Check if 'articles' exist in response
+if "articles" in news_data and len(news_data["articles"]) > 0:
+    news_or_tweet_data = [article["title"] for article in news_data["articles"]]
+    print("Fetched News Headlines:")
+    for i, headline in enumerate(news_or_tweet_data[:5], 1):  # Show top 5 headlines
+        print(f"{i}. {headline}")
+else:
+    print("No articles found or API error:", news_data)
+    news_or_tweet_data = []  # Avoid breaking the code
+
+#step 3.2: sentiment analysis:
+
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import numpy as np
+
+# Initialize Sentiment Analyzer
+sia = SentimentIntensityAnalyzer()
+
+# Perform sentiment analysis on each news headline
+sentiments = [sia.polarity_scores(text)["compound"] for text in news_or_tweet_data]
+sentiment_array = np.array(sentiments).reshape(-1, 1)
+
+# Display sentiment scores
+print("\nSentiment Scores:")
+for i, (headline, sentiment) in enumerate(zip(news_or_tweet_data[:5], sentiments)):
+    print(f"{i+1}. {headline} | Sentiment Score: {sentiment}")
+
+#Step 4: converting sentiment scores into time series
+
+import pandas as pd
+import numpy as np
+
+# Convert sentiment scores into a DataFrame
+sentiment_df = pd.DataFrame({
+    "date": pd.to_datetime([article["publishedAt"][:10] for article in news_data["articles"]]),  # Extract date
+    "sentiment_score": sentiments
+})
+
+# Group by date to get the average sentiment per day
+sentiment_df = sentiment_df.groupby("date").mean().reset_index()
+
+# Show sample sentiment data
+print(sentiment_df.head())
+
+#Step 5: merging sentiment data with stock data
+
+# Reset stock data index
+df_stock.reset_index(inplace=True)
+df_stock.rename(columns={"index": "date"}, inplace=True)
+
+# Merge with sentiment data
+df_combined = pd.merge(df_stock, sentiment_df, on="date", how="left")
+
+# Fill missing sentiment scores with neutral (0)
+df_combined["sentiment_score"].fillna(0, inplace=True)
+
+df_combined.head()
+
+##Step 6: Fitting ARIMA model
+import pandas as pd
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+
+df_arima = df_stock[['date', '4. close']].set_index('date')
+
+# Convert index to datetime format (if not already)
+df_arima.index = pd.to_datetime(df_arima.index)
+
+# Set frequency explicitly (e.g., 'B' for business days)
+df_arima = df_arima.asfreq('B')  
+
+# Fit ARIMA Model
+arima_model = ARIMA(df_arima, order=(5,1,0))  # Order can be optimized
+arima_fit = arima_model.fit()
+
+# Predict next 5 business days
+steps = 5
+arima_forecast = arima_fit.forecast(steps=steps)
+
+# Generate forecast dates
+forecast_dates = pd.date_range(start=df_arima.index[-1], periods=steps + 1, freq='B')[1:]
+
+# Print forecast with dates
+forecast_df = pd.DataFrame({'Predicted Price': arima_forecast}, index=forecast_dates)
+
+print("ARIMA Forecast for Next 5 Days:")
+print(forecast_df)
+
+#Step 7: preprocess data for LSTM model
+
+# Select features: Closing price + Sentiment score
+features = ["4. close", "sentiment_score"]
+
+# Normalize data
+scaler = MinMaxScaler(feature_range=(0,1))
+scaled_data = scaler.fit_transform(df_combined[features])
+
+# Convert into sequences for LSTM
+X, y = [], []
+time_step = 60  # Using past 60 days to predict next day
+
+for i in range(time_step, len(scaled_data)):
+    X.append(scaled_data[i-time_step:i])  # Past time steps as input
+    y.append(scaled_data[i, 0])  # Future closing price as target
+
+X, y = np.array(X), np.array(y)
+
+# Split into training, validation, and testing
+train_size = int(len(X) * 0.7)
+val_size = int(len(X) * 0.15)
+test_size = len(X) - train_size - val_size
+
+X_train, X_val, X_test = X[:train_size], X[train_size:train_size+val_size], X[train_size+val_size:]
+y_train, y_val, y_test = y[:train_size], y[train_size:train_size+val_size], y[train_size+val_size:]
+
+print(f"Training Size: {X_train.shape}, Validation Size: {X_val.shape}, Testing Size: {X_test.shape}")
+
+#Step 8: training LSTM model
+
+# Define LSTM model
+model = Sequential([
+    LSTM(50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
+    LSTM(50),
+    Dense(1)  # Predicting stock price
+])
+
+# Compile model
+model.compile(optimizer="adam", loss="mean_squared_error")
+
+# Train model
+model.fit(X_train, y_train, epochs=20, batch_size=32, validation_data=(X_val, y_val))
+
+#Step 9: Plotting Actual price V/S predicted price
+test_dates = df_stock['date'][-len(y_test):]  # Extract corresponding dates for test data
+
+# Predict on test data
+y_pred = model.predict(X_test)
+
+# Reverse scaling
+y_pred_rescaled = scaler.inverse_transform(np.hstack((y_pred, np.zeros((y_pred.shape[0], 1)))))[:, 0]
+y_test_rescaled = scaler.inverse_transform(np.hstack((y_test.reshape(-1,1), np.zeros((y_test.shape[0], 1)))))[:, 0]
+
+# Plot predictions with actual dates
+plt.figure(figsize=(18, 12))
+plt.plot(test_dates, y_test_rescaled, label="True Price", color="blue")
+plt.plot(test_dates, y_pred_rescaled, label="Predicted Price", color="red", linestyle='dashed')
+plt.title(f"Stock Price Prediction for {stock_symbol}")
+plt.xlabel("Date")
+plt.ylabel("Price")
+plt.legend()
+plt.xticks(rotation=45)  # Rotate dates for better visibility
+plt.show()
