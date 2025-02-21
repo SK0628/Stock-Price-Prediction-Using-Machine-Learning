@@ -47,7 +47,7 @@ This project is **open-source** under the MIT License.
 Feel free to contribute by **raising issues** or **submitting pull requests**!
 
 ## 📞 Contact
-For any queries or suggestions, connect with me on **[LinkedIn](www.linkedin.com/in/sskoct21)** or email **shivamkansara2110@gmail.com**
+For any queries or suggestions, connect with me on **[LinkedIn](https://www.linkedin.com/in/sskoct21/)** or email **shivamkansara2110@gmail.com**
 
 ---
 ⭐ **If you like this project, give it a star!** ⭐
