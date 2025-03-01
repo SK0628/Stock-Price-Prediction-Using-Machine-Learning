@@ -1,7 +1,9 @@
 # Stock Price Prediction Using Machine Learning
 
-![image](https://github.com/user-attachments/assets/3786151e-c88f-4521-84ae-5e79f1cba478)
+![image](https://github.com/user-attachments/assets/3786151e-c88f-4521-84ae-5e79f1cba478
+![Screenshot 2025-02-26 232747](https://github.com/user-attachments/assets/2015ae94-7c7c-40b7-add8-54006c26a024)
 
+ 
 
 ## 📈 Project Overview
 Imagine you're an investor, constantly tracking stock prices, trying to predict the market's next big move. You analyze charts, follow news updates, and make decisions based on gut feeling. But what if you had a tool that could help you make data-driven decisions? That's exactly what this project aims to achieve!
