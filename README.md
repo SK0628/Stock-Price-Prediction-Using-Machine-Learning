@@ -1,6 +1,7 @@
 # Stock Price Prediction Using Machine Learning
 
-![image](https://github.com/user-attachments/assets/3786151e-c88f-4521-84ae-5e79f1cba478
+![Screenshot 2025-02-21 222625](https://github.com/user-attachments/assets/4b673f12-08cd-4c07-8855-9c2991140f8f)
+
 ![Screenshot 2025-02-26 232747](https://github.com/user-attachments/assets/2015ae94-7c7c-40b7-add8-54006c26a024)
 
  
